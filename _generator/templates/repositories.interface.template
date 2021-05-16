@@ -1,0 +1,10 @@
+using System.Threading.Tasks;
+using System.Collections.Generic;
+
+namespace %namespace%.Repositories
+{
+    public interface I%typeName%Repository
+    {
+        %modelContent%
+    }
+}

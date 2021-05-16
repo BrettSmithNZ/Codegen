@@ -1,0 +1,17 @@
+    #region %model%
+
+    public Task<IEnumerable<%model%>> Get%model%List(
+        %modelFilters%
+    );
+        
+    public Task<%model%> Get%model%(
+        %modelKeys%
+    );
+
+    public Task<%model%> Create%model%(%model% entity);
+        
+    public Task Update%model%(%model% entity);
+
+    public Task Delete%model%(int id);
+
+    #endregion

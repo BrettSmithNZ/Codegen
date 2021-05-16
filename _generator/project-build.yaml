@@ -1,0 +1,35 @@
+resource: Orders
+templates:
+  - name: Models
+    fileName: "%model%.cs"
+  - name: Repositories
+    consolidated: True
+    fileName: "%resource%Repository.cs"
+models:
+  - model: Order
+    properties:
+      - name: Id
+        type: int
+        primaryKey: True
+        readOnly: True
+        filterable: True
+      - name: OrderDate
+        type: DateTimeOffset
+  - model: OrderDetail
+    properties:
+      - name: Id
+        type: int
+        primaryKey: True
+        readOnly: True
+        filterable: True
+      - name: OrderId
+        type: int
+        filterable: True
+        foreignKey:
+          - model: Order
+            property: Id
+            onDelete: Cascade
+      - name: Description
+        type: string
+      - name: amount
+      - type: decimal

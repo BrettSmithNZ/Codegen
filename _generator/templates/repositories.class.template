@@ -1,0 +1,20 @@
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using %namespace%.Models;
+
+namespace %namespace%.Repositories
+{
+    public class %typeName%Repository : I%typeName%Repository
+    {
+        private readonly ILogger<%typeName%Repository> _logger;
+        public %typeName%Repository(
+            ILogger<%typeName%Repository> logger
+        )
+        { 
+            _logger = logger;
+        }
+
+        %modelContent%
+    }
+}

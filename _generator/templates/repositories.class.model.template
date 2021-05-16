@@ -1,0 +1,30 @@
+    #region %model%
+
+    public Task<IEnumerable<%model%>> Get%model%List(
+        %modelFilters%
+    ){
+       throw new NotImplementedException();
+    }
+        
+    public Task<%model%> Get%model%(
+        %modelKeys%
+    ){
+        throw new NotImplementedException();
+    }
+
+    public Task<%model%> Create%model%(%model% entity)
+    {
+        throw new NotImplementedException();
+    }
+        
+    public Task Update%model%(%model% entity)
+    {
+        throw new NotImplementedException();
+    }
+
+    public Task Delete%model%(int id)
+    {
+        throw new NotImplementedException();
+    }
+
+    #endregion
