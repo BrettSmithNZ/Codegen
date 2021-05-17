@@ -1,4 +1,4 @@
-﻿param($baseFolder = $(throw "You must specify your base folder"))
+param($baseFolder = $(throw "You must specify your base folder"))
 # Check if the user has powershell-yaml installed, if not then install
 if (-not(Get-Module -ListAvailable -Name powershell-yaml)) {
     Install-Module -Name powershell-yaml
@@ -72,11 +72,11 @@ Function Set-ContentVariables {
             "public $(Get-PropertyType $_.type $_.nullable) $($_.name) { get; set; }" 
         }) -join "`n`t`t"
 
-    $filterProperties = @($modelProperties.Where( { [bool]$_.filterable }) | ForEach-Object {
+    $filterProperties = @($class.properties.Where( { [bool]$_.filterable }) | ForEach-Object {
             ("IEnumerable<$(Get-PropertyType $_.type $_.nullable)> $($_.name) = null") 
         }) -join ",`n`t`t`t`t" 
         
-    $keyProperties = @($modelProperties.Where( { [bool]$_.primaryKey }) | ForEach-Object {
+    $keyProperties = @($class.properties.Where( { [bool]$_.primaryKey }) | ForEach-Object {
             ("$($(Get-PropertyType $_.type $_.nullable)) $($_.name)") 
         }) -join ",`n`t`t`t`t" 
 
