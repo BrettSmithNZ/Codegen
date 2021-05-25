@@ -24,10 +24,14 @@ class ClassItem {
     [string] $model
     [ClassProperty[]] $properties
 }
-
+class  TemplatePart {
+    [string] $name
+    [string] $fileName
+}
 class TemplateItem {
     [string] $name
     [bool] $consolidated = $null
+    [TemplatePart[]] $parts = $null
     [string] $fileName
 }
 
@@ -62,15 +66,24 @@ Function Get-PropertyType {
 Function Set-ContentVariables {
     param (
         [string[]] $classContent,
-        [string] $nameSpace,
-        [ClassItem] $class
+        [ClassItem] $class,
+        [string] $indent = $null
     )
 
+    $editableProperties = $class.properties.Where( { !([bool] $_.readOnly) })
+
+    $editableMap = @($editableProperties | ForEach-Object { ("$($_.name) = source.$($_.name)") }) -join ",`n`t`t`t`t" 
     $propertymap = @($class.properties | ForEach-Object { ("$($_.name) = source.$($_.name)") }) -join ",`n`t`t`t`t" 
+
+    $nameOfProperties = ($class.properties | ForEach-Object { ("nameof($($class.model).$($_.name))") }) -join ",`n`t`t`t`t`t`t"`
     
-    $propertyGetterSetters = ($class.properties | ForEach-Object { 
+    $propertyGetterSetters = ($class.properties | ForEach-Object { ("public $(Get-PropertyType $_.type $_.nullable) $($_.name) { get; set; }") }) -join "`n`t`t"
+    $editableGetterSetters = ($editableProperties | ForEach-Object { ("public $(Get-PropertyType $_.type $_.nullable) $($_.name) { get; set; }") }) -join "`n`t`t"
+        
+    $filterPropertyGetterSetters = @($class.properties.Where( { [bool]$_.filterable }) | ForEach-Object {
             "public $(Get-PropertyType $_.type $_.nullable) $($_.name) { get; set; }" 
-        }) -join "`n`t`t"
+        }) -join ",`n`t`t`t`t" 
+
 
     $filterProperties = @($class.properties.Where( { [bool]$_.filterable }) | ForEach-Object {
             ("IEnumerable<$(Get-PropertyType $_.type $_.nullable)> $($_.name) = null") 
@@ -80,40 +93,51 @@ Function Set-ContentVariables {
             ("$($(Get-PropertyType $_.type $_.nullable)) $($_.name)") 
         }) -join ",`n`t`t`t`t" 
 
-    return  $classContent -join "`r`n" `
-        -replace "%namespace%", $nameSpace `
+    $keyPropertyConditions = @($class.properties.Where( { [bool]$_.primaryKey }) | ForEach-Object {
+            "(nameof($($class.model).$($_.name)), new object[]{ $($_.name)})" 
+        }) -join ",`n`t`t`t`t" 
+
+    return  $classContent -join ("`r`n" + $indent) `
         -replace "%model%", $class.model `
         -replace "%modelFilters%", $filterProperties `
         -replace "%modelKeys%", $keyProperties `
         -replace "%propertymap%", $propertymap `
-        -replace "%propertyGetterSetters%", $propertyGetterSetters
+        -replace "%editableMap%", $editableMap `
+        -replace "%nameOfProperties%", $nameOfProperties `
+        -replace "%propertyGetterSetters%", $propertyGetterSetters `
+        -replace "%filterPropertyGetterSetters%", $filterPropertyGetterSetters `
+        -replace "%editableGetterSetters%", $editableGetterSetters `
+        -replace "%keyPropertyConditions%", $keyPropertyConditions
 }
 Function Get-ClassContent {
     param (
-        [string] $project,
         [ClassItem] $class,
-        [string] $templateFile
+        [string] $templateFile,
+        [string] $indent = $null
     )
         
     [string[]]$templateContent = Get-Content -Path $templateFile
 
-    return Set-ContentVariables $templateContent $project $class
+    return Set-ContentVariables $templateContent $class $indent
 }
 Function Save-ClassFile {
     param (
-        [string] $project,
+        [string] $namespace,
+        [string] $typeName,
         [ClassItem] $class,
         [string] $outputFile,
         [string] $templateFile
     )
 
-    $contentToSet = Get-ClassContent $project $class $templateFile
+    $contentToSet = (Get-ClassContent $class $templateFile) `
+        -replace "%namespace%", $namespace `
+        -replace "%typeName%", $typeName
         
     $modelPath = $outputFile
     if (-not ( Test-Path -Path $modelPath)) {
         New-Item -Path $modelPath -Type File
     }
-    Set-Content -Path $modelPath -Value $contentToSet
+    Set-Content -Path $modelPath -Value $contentToSet 
 }
 Function Save-ContentFile {
     param (
@@ -129,9 +153,9 @@ Function Save-ContentFile {
     $modelContent = $contentArray -join "`r`n`r`n`t`t"
             
     $content = $templateContent -join "`r`n" `
+        -replace "%modelContent%", $modelContent `
         -replace "%namespace%", $namespace `
-        -replace "%typeName%", $typeName `
-        -replace "%modelContent%", $modelContent
+        -replace "%typeName%", $typeName
 
     if (-not(Test-Path -Path $contentFilePath)) {
         New-Item -Path $contentFilePath -Type File
@@ -166,7 +190,9 @@ Foreach ($project in (Get-ChildItem -Path $baseFolder )) {
         $folders = ($buildDefinition.templates | ForEach-Object { $_.name })
 
         Foreach ($folder in $folders) {
-            Remove-Item $projectPath\$folder -Recurse 
+            if (Test-Path $projectPath\$folder) {
+                Remove-Item $projectPath\$folder -Recurse 
+            }
             mkdir $projectPath\$folder           
         }
 
@@ -190,8 +216,9 @@ Foreach ($project in (Get-ChildItem -Path $baseFolder )) {
                     $buildDefinition.models | ForEach-Object {
                         $class = $_
     
-                        $contentArray += Get-ClassContent $project $class `
-                            "$templateDirectory\$($templateFile -replace '.template' , '.model.template')"
+                        $contentArray += Get-ClassContent $class `
+                            "$templateDirectory\$($templateFile -replace '.template' , '.model.template')" `
+                            "`t`t"
                     }
     
 
@@ -210,9 +237,19 @@ Foreach ($project in (Get-ChildItem -Path $baseFolder )) {
                 $buildDefinition.models | ForEach-Object {
                     $class = $_
 
-                    Save-ClassFile $project $class `
-                        "$projectPath\$($templateName)\$($fileName -replace "%model%", $class.model)" `
-                        "$templateDirectory\$($templateName).class.template"
+                    if ($template.parts) {
+                        $template.parts | ForEach-Object {
+                            $part = $_
+                            Save-ClassFile $project $typeName $class `
+                                "$projectPath\$($templateName)\$($part.fileName -replace "%model%", $class.model)" `
+                                "$templateDirectory\$($templateName).$($part.name).template"
+                        }
+                    }
+                    else {
+                        Save-ClassFile $project $typeName $class `
+                            "$projectPath\$($templateName)\$($fileName -replace "%model%", $class.model)" `
+                            "$templateDirectory\$($templateName).class.template"
+                    }
                 }
             }
         }
